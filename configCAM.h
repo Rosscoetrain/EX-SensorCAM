@@ -39,14 +39,14 @@ The configuration file for ESP32-CAM based sensorCAM
 //
 // Your SSID may not contain ``"'' (double quote, ASCII 0x22).
 //#define WIFI_SSID "Your network name"
-#define WIFI_SSID    "Your network name"
+#define WIFI_SSID    "tihc4"
 //
 // WIFI_PASSWORD is the network password for your home network or if
 // you want to change the password from default AP mode password
 // to the AP password you want. 
 // Your password may not contain ``"'' (double quote, ASCII 0x22).
 //#define WIFI_PWD "Your network passwd"
-#define WIFI_PWD "Your network passwd"
+#define WIFI_PWD "168dead861"
 //
 // For ALTERNATIVE WiFi network set up SSID and password if required
 //#define ALTWIFI_SSID     "Your Alt.net name"
@@ -60,10 +60,12 @@ The configuration file for ESP32-CAM based sensorCAM
 //#define TWOIMAGE_MAXBS 030
 #define TWOIMAGE_MAXBS 030 
 // 
-// Set the I2C device address 
+#ifdef USE_I2C
+// Set the I2C device address
 // Try to keep in range 0x11-0x14 (CAM/CAM1 to CAM4)
 //#define I2C_DEV_ADDR 0x11  // default
-#define I2C_DEV_ADDR 0x11 
+#define I2C_DEV_ADDR 0x11
+#endif
 // 
 // As a mains frequency driven lighting system can introduce "flicker" at double the frequency (100/120Hz)
 // setting this parameter may reduce the resulting "noise" on sensors

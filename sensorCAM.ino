@@ -63,8 +63,10 @@
 #include <WiFi.h>         //compiler still finding: Multiple libraries were found for "WiFi.h"
             //Used: C:\Users\Barry\AppData\Local\Arduino15\packages\esp32\hardware\esp32\2.0.3-RC1\libraries\WiFi
             //Not used: C:\Program Files (x86)\Arduino\libraries\WiFi
-#include <Wire.h>         //esp32 i2c Wire library 
-TwoWire MyWire = TwoWire(0);   //Create second i2c interface (don't use Wire1 = ) 
+#ifdef USE_I2C
+#include <Wire.h>         //esp32 i2c Wire library
+TwoWire MyWire = TwoWire(0);   //Create second i2c interface (don't use Wire1 = )
+#endif
 
      // define appropriate board (only AI_THINKER tested so far
 #ifndef CAMERA_MODEL_WROVER_KIT   // define in configCAM.h if appropriate 
@@ -72,8 +74,10 @@ TwoWire MyWire = TwoWire(0);   //Create second i2c interface (don't use Wire1 = 
 #endif
 #include "camera_pins.h"          //for thinker, includes #define XCLK_GPIO_NUM 0
 
+#ifdef USE_I2C
 #define I2C_FREQ 100000   //Master sets i2c clock frequency   MEGA uses default clock (100kBits/sec)
-                        //Define GPIO ports for I/O use 
+#endif
+                        //Define GPIO ports for I/O use
 #ifdef  CAMERA_MODEL_AI_THINKER                             
 #define I2C_SDA2 15       //for MyWire (twowire) i2c data GPIO pin 15
 #define I2C_SCL2 13       //for MyWire (twowire) i2c clock pin
@@ -192,9 +196,11 @@ unsigned long int starttime=0;          //counter giving each start time in uSec
 int E6counter=200;  //E6 EXIOexpander cmd occurs at 100/sec.  stop E4 debug output after #
 
 byte analoguePinMap[] = {12,13,14,15,16,17};       //default pin map for uno & nano  vpin=firstVpin+Map[i]?
+#ifdef USE_I2C
 byte EXCScmd0=0;      //last EXCS cmd
 bool EXCScmd=false;   //true if last i2c cmd from EX
 int firstVpin=0;      //to be set by EX-CS EXIOINIT function
+#endif
 int Bri=0, Con=1, Sat=2, AWB=1, AWBg=1, AEC=1, AECd=1, AEL=1, AGC=1, AGg=9;   //initial settings of 'c' variables
 int AWB9=1, AGC9=1;                         //after prefillRef delay (9sec) change AWB and AGC if desired
 //   arguments for 'c' command; Bri Con Sat AWB AWBg AEC AECd AEL AGC AGg (NO SPACES!)
@@ -253,9 +259,11 @@ int h7block=1;          //h7 stop on block # trip
 int aRefCtr=-1;         //for 'a' cmd
 int absn=0; //char absNo1='0', absNo2='0';  //save 'a' bsn for 'r'
 
+#ifdef USE_I2C
 char i2cCmd[64]={'0'};      //string from Master (onReceive)
 byte dataPkt[128]={CAMERR};   // prepared packet(s) for i2c (max packet=32 bytes)
-bool newi2cCmd=false;    // flags the presence of a new i2c serial command string for processing  
+bool newi2cCmd=false;    // flags the presence of a new i2c serial command string for processing
+#endif
                                                                                            
 //int  wifi=1;                //identify default wifi router (1 or 2)
 bool MyWebServer=true;
@@ -425,6 +433,7 @@ void setup() {
         ESP.restart();
       }
       delay(STARTUP_DELAY);                  //Prof's mod to help startup. default 2000
+#ifdef USE_I2C
       MyWire.onReceive(i2cReceive);                //set up response to receive & request
       MyWire.onRequest(i2cRequest);                //links to void i2cRequest()
 bool  MyWireOK=MyWire.begin((uint8_t)I2C_DEV_ADDR,I2C_SDA2,I2C_SCL2,0);  //Slave needs no FREQ - Master's choice
@@ -432,14 +441,15 @@ bool  MyWireOK=MyWire.begin((uint8_t)I2C_DEV_ADDR,I2C_SDA2,I2C_SCL2,0);  //Slave
       else printf("MyWire.begin()FAILED\n");
 
 #if CONFIG_IDF_TARGET_ESP32                           //ESP32 needs a call to slaveWrite for Arduino compatibility
-      uint32_t i2cCtr = 0;          //prepare for i2c 
+      uint32_t i2cCtr = 0;          //prepare for i2c
       IFT printf("Doing slaveWrite() for ESP32\n");   //ESP32-S2 and ESP32-C3 don't need slaveWrite()
-      char message[64];                               
+      char message[64];
       snprintf(message, 64, "E%u Packets.", i2cCtr++);//snprintf() puts the text "1 Packets" into char message[64]
       message[0]=CAMERR;
       MyWire.slaveWrite((uint8_t *)message, strlen(message)); //preload onRequest buffer
       IFT printf("Done slaveWrite\n");
-#endif                                                        
+#endif
+#endif
       delay(4000);
  
     Spr("Camera initialised ");Serial.println(esp_err_to_name(err));
@@ -546,12 +556,19 @@ void loop() {
         delay(3000);          
         ESP.restart();          //give up on wifi and return to sensor mode
       }else Spr(cmdChar);
-      if((cmdChar=='g') || (i2cCmd[0]=='g')){          //get camera status
+      if(cmdChar=='g') {          //get camera status
+        getCAMstatus();
+      }
+#ifdef USE_I2C
+      if(i2cCmd[0]=='g') {
         i2cCmd[0]='.';
         getCAMstatus();
       }
+#endif
     }         //end if (Serial.available())
+#ifdef USE_I2C
     if ((i2cCmd[0]=='R') || (i2cCmd[0]=='F')) ESP.restart();        //exit back to sensor mode
+#endif
   }       //end MyWebserver code
   
 // ***CALCULATE AND PRINT LOOP TIME - & IF CALLED FOR, UPDATE NEW CAMERA SETTINGS   
@@ -808,6 +825,7 @@ int  sumR=0; int sumG=0; int sumB=0;        //calculate new bright(00) ( <= 48*6
         cmdCount=0;      //reset command string index  	 
       }
     }  
+#ifdef USE_I2C
     if(newi2cCmd==true){     
 /***/ IFI2C {Serial.print("I2C:");Spr(char(i2cCmd[0]));}
       for (i=0;i<64;i++)cmdString[i] = i2cCmd[i];     //copy i2cCmd to cmdString
@@ -818,6 +836,7 @@ int  sumR=0; int sumG=0; int sumB=0;        //calculate new bright(00) ( <= 48*6
       processCmd(imagePtr,pitch,Sensor,nParam,p);      //process command line
       if(cmdString[0]!='w') newi2cCmd=false;  //if() lets newi2cCmd cancel 'w' without being discarded itself.
     }
+#endif
     else while (Serial.available() > 0) {          //each command is followed by a fresh loop to "get_image"
       cmdChar=Serial.read();
       cmdString[cmdCount]=cmdChar;               //add it to cmd string
@@ -905,12 +924,16 @@ int bsn=0;
               Spr("(b$#) changing brightSF sensitivity to "); Serial.println(brightSF); 
             }  
           b=p[1]%10;                //ignore any further text after b$
+#ifdef USE_I2C
           if(!newi2cCmd){
+#endif
             Spr("(b$#)bank: ");Spr(b);Spr(" occupancy status byte: 0x");
             Spr(SensorBlockStat[b],HEX);Spr(" (sensors 7-0) ");
             for (i=7;i>=0;i--) Spr((SensorBlockStat[b]>>i) & 0x01); Serial.println(' ');
-          }         
-          else IFI2C {for (i=7;i>=0;i--) Spr((SensorBlockStat[b]>>i) & 0x01); Serial.println(' '); }        
+#ifdef USE_I2C
+          }
+          else IFI2C {for (i=7;i>=0;i--) Spr((SensorBlockStat[b]>>i) & 0x01); Serial.println(' '); }
+#endif
         } 
         break;  
       }            //c$$$$#####; set $=1 to leave AWB AEC AGC & CB respectively. 
@@ -1279,7 +1302,11 @@ int bsn=0;
       case 'R': {     //R;  Reset command reboots the CAM in Sensor mode and restores parameters from EPROM
         if(p[0]!='F'){                          //'F' forces Restart immediately (for EX-CS)
           Serial.print("(R)Reset: Press 'Enter' to confirm reset in Sensor Mode - 'R' or 'aw' will abort Reset & wait");
+#ifdef USE_I2C
           while (!Serial.available() && !newi2cCmd) delay(10); //stops looping indefinitely until get a newline \n
+#else
+          while (!Serial.available()) delay(10); //stops looping indefinitely until get a newline \n
+#endif
           cmdChar=Serial.read();       
           if(cmdChar != '\n'){Serial.println("\nAborting Reset"); break;}  //any character can abort except LF
         }
@@ -1293,7 +1320,9 @@ int bsn=0;
       }
       case 'v':{      //v#;  reboot & select video webserver mode
         if(FLASHLED==2)printf("CAMERA_MODEL_WROVER_KIT  ");
-        printf("CAM:0x%x\n",I2C_DEV_ADDR); //"CAM:0x%x command: v p[1]: %d\n",I2C_DEV_ADDR,p[1]);               
+#ifdef USE_I2C
+        printf("CAM:0x%x\n",I2C_DEV_ADDR); //"CAM:0x%x command: v p[1]: %d\n",I2C_DEV_ADDR,p[1]);
+#endif
         if((p[1]<1)||(p[1]>2)) {
           
           printf("(v#) CAM software version (BCDver): %d.%d.%d\n",BCDver/1000,(BCDver/100)%10,BCDver%100);
@@ -1302,7 +1331,11 @@ int bsn=0;
         int wifi=p[1];     //identify requested wifi router (1 or 2)
         printf("(v[1|2])Video: About to restart CAM (in video(jpeg) mode for webserver via wifi %d.\n",wifi);
         printf("Waiting - press 'Enter' to trigger reset\n");
+#ifdef USE_I2C
         while (!Serial.available() && !newi2cCmd) delay(10); //stops looping indefinitely until input a newline NL
+#else
+        while (!Serial.available()) delay(10); //stops looping indefinitely until input a newline NL
+#endif
           //need to set EPROM flag in eprom
           // should we do another EEPROM.begin in case EEPROM.end already done??
         EEPROM.write(EPvFlag,wifi);   //write a flag to force webserver after reboot. (default wifi=1)
@@ -1470,8 +1503,10 @@ int bsn=0;
         break; 
       }  
     }       //end switch()
-    newi2cCmd=false;        // be aware that this could clobber a fast follow up i2c command already received. 
-/***/IFI2C Spr(" i2cCF ");   
+#ifdef USE_I2C
+    newi2cCmd=false;        // be aware that this could clobber a fast follow up i2c command already received.
+/***/IFI2C Spr(" i2cCF ");
+#endif
 }           //end processCmd()
    // *****************************
 
@@ -1980,6 +2015,7 @@ void toAscii(byte * buff,int value, int n) {
     buff[n+1]= '\n';
 }    // ****************************
       
+#ifdef USE_I2C
 //  FUNCTION TO ACCEPT I2C COMMANDS/DATA (AS SLAVE)
 void i2cReceive(int len){           //function to handle i2c received (interrupts)
  // uint8_t SizeBuf=32;              //fn can receive in two formats - from CS (upper case or BCDstation(ascii lower case)
@@ -2531,6 +2567,7 @@ const int pitch=320*2;                  //row length in RGB565 buffer (QVGA 320x
           return 0;     //error return ZERO bytes - unrecognised cmd.
       }
 }   // *****************************
+#endif
 
 //  FUNCTION TO FLASH LED
 void flashLed(int pulse){       //flash <pulse> uSec long
@@ -2655,9 +2692,14 @@ void av2frames(int bsn){          //byte RingBuff[2*80*16*3];
 
 //FUNCTION TO SUSPEND LOOPING
 void wait(){
-  //stops looping indefinitely until input a newline (\n) from USB or i2c  
+  //stops looping indefinitely until input a newline (\n) from USB or i2c
+#ifdef USE_I2C
        if(!newi2cCmd) printf("Waiting - 'Enter' to continue\n");
        while (!Serial.available() && !newi2cCmd) {
+#else
+       printf("Waiting - 'Enter' to continue\n");
+       while (!Serial.available()) {
+#endif
          if((micros()-starttime)>CYCLETIME) starttime += CYCLETIME;  //handles 71min overflow
        }
 }  // *****************************

@@ -8,6 +8,7 @@ Release/*
 .vscode/
 my*.ini
 config.h
+configCAM.h
 mySetup.cpp
 myHal.cpp
 myFilter.cpp

@@ -60,11 +60,13 @@ The configuration file for ESP32-CAM based sensorCAM
 //#define TWOIMAGE_MAXBS 030
 #define TWOIMAGE_MAXBS 030
 //                                                                                
-// Set the I2C device address 
+#ifdef USE_I2C
+// Set the I2C device address
 // Try to keep in range 0x11-0x14 (CAM/CAM1 to CAM4)
 //
 //#define I2C_DEV_ADDR 0x11  // default
-#define I2C_DEV_ADDR 0x11 
+#define I2C_DEV_ADDR 0x11
+#endif
 // 
 // As a mains frequency driven lighting system can introduce "flicker" at double the frequency (100/120Hz)
 // setting this parameter may reduce the resulting "noise" on sensors
